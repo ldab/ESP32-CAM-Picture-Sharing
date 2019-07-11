@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# PlatformIO
+.pio
+.pioenvs
+.piolibdeps
+.vscode
