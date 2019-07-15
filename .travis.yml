@@ -33,7 +33,8 @@ install:
     # Libraries from PlatformIO Library Registry:
     # https://github.com/ldab/ESP32_FTPClient -> 6543
     # https://github.com/blynkkk/blynk-library -> 415
-    - platformio lib -g install 6543 415
+    # TimeLib ID 44
+    - platformio lib -g install 6543 415 44
 
 script:
     - pio run
