@@ -61,9 +61,9 @@ ESP32-CAM remote image access via FTP. Take pictures with ESP32 and upload it vi
 
 * This way you don't need to overload the ESP32, your network remains secure, not open to the world, no port forwarding.
 
-* For this example I uploaded the GitHub Octocat to my [000Webhost](https://www.000webhost.com/) hosted webiste, the file is avalable under: [https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg](https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg)
+* For this example I uploaded the GitHub Octocat to my [000Webhost](https://www.000webhost.com/) hosted webiste, the file is avalable under: [https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg](https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg).
 
- <img src="https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg" alt="Octocat" width="50%"> 
+<img src="https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg" width="20%"> 
 
 ```
   ftp.OpenConnection();
@@ -76,7 +76,6 @@ ESP32-CAM remote image access via FTP. Take pictures with ESP32 and upload it vi
   ftp.CloseFile();
 
   ftp.CloseConnection();
-
 ```
 
 ### FTP information
@@ -96,7 +95,6 @@ upload_FTPpicture();
 
 // And by changing it on Blynk from the hardware will reflect on the App
 Blynk.setProperty(VX, "url", 1, "https://mywebsite/something/my_picture_201906170521.jpg");
-
 ```
 
 ![Blynk and ESP32 CAM photo sharing](./pics/screenshot_blynk.jpg)
@@ -112,5 +110,3 @@ Blynk.setProperty(VX, "url", 1, "https://mywebsite/something/my_picture_20190617
 GitHub Shields and Badges created with [Shields.io](https://github.com/badges/shields/)
 
 GitHub ESP32 camera [example](https://github.com/espressif/arduino-esp32/tree/master/libraries/ESP32/examples/Camera/CameraWebServer)
-
-[//]:<>(https://github.com/raphaelbs/esp32-cam-ai-thinker/blob/master/examples/google_storage/main/main.c)
