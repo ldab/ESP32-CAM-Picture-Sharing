@@ -31,9 +31,9 @@ install:
     - platformio update
 
     # Libraries from PlatformIO Library Registry:
-    # https://github.com/marvinroger/async-mqtt-client -> 346
-    # https://github.com/adafruit/Adafruit_HTU21DF_Library -> 566
-    - platformio lib -g install 566 346
+    # https://github.com/ldab/ESP32_FTPClient -> 6543
+    # https://github.com/blynkkk/blynk-library -> 415
+    - platformio lib -g install 6543 415
 
 script:
     - pio run

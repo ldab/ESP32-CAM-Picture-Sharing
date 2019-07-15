@@ -7,7 +7,7 @@ ESP32-CAM remote image access via FTP. Take pictures with ESP32 and upload it vi
 
 [![GitHub last commit](https://img.shields.io/github/last-commit/ldab/ESP32-CAM-Picture-Sharing.svg?style=social)](https://github.com/ldab/ESP32-CAM-Picture-Sharing)
 
-[![ESP32-CAM](./pics/esp32cam.png)](https://www.aliexpress.com/item/32963016501.html?spm=a2g0s.9042311.0.0.4acb4c4dqzOcdx)
+[![ESP32-CAM](./pics/esp32cam.jpg)](https://www.aliexpress.com/item/32963016501.html?spm=a2g0s.9042311.0.0.4acb4c4dqzOcdx)
 
 ## Sumary
 
@@ -17,8 +17,6 @@ ESP32-CAM remote image access via FTP. Take pictures with ESP32 and upload it vi
 4. [Free Website Hosting](/README.md#Free-Website-Hosting)
 5. [Blynk](/README.md#Blynk)
 6. [Node-RED](/README.md#Node-RED)
-  1. [CloudMQTT](/README.md#CloudMQTT)
-  2. [IBM Cloud](/README.md#IBM-Cloud)
 7. [Credits](/README.md#Credits)
 
 ## PlatformIO
@@ -46,12 +44,68 @@ ESP32-CAM remote image access via FTP. Take pictures with ESP32 and upload it vi
 
 ## Hardware
 
+### Board Pinout
+
+![ESP32-CAM Pinout](./pics/esp32cam_pinout.png)
+
 ### LDO
 
 * This board has an [AMS1117](./extras/ds1117.pdf) voltage regulator which "sleep" current is around `6mA`, this is quite a lot if you plan to have your board running on batteries.
 * **TODO!** find an alternative with the same package.
 
 ## Free Website Hosting
+
+* There're plenty of tutorials and examples on how to run the video streming or pictures on your local network while the ESP32 acts as a webserver.
+
+* The idea behind this project is to `upload` the picture via FTP making it available on an URL something like: `www.mysite.com/my_picture.jpg`
+
+* This way you don't need to overload the ESP32, your network remains secure, not open to the world, no port forwarding.
+
+* For this example I uploaded the GitHub Octocat to my [000Webhost](https://www.000webhost.com/) hosted webiste, the file is avalable under: [https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg](https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg)
+
+ <img src="https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg" alt="Octocat" width="50%"> 
+
+```
+  ftp.OpenConnection();
+
+  // Create the new file and send the image
+  ftp.InitFile("Type I");
+  ftp.ChangeWorkDir("/public_html/zyro/gallery_gen/");
+  ftp.NewFile("octocat.jpg");
+  ftp.WriteData( octocat_pic, sizeof(octocat_pic) );
+  ftp.CloseFile();
+
+  ftp.CloseConnection();
+
+```
+
+### FTP information
+
+* Your FTP details can be found on the 000webhost control panel once logged on click your site then details.
+
+![000webhost](https://www.000webhost.com/forum/uploads/default/original/2X/0/026a3c78b11ca4864452140237eab946a3f2c267.png)
+
+## Blynk App
+
+* This is a Bonus, as you may want to add it to your altomation project, you can use `Blynk Image Gallery Widget` and just supply it with the URL used by ESP32 from the hardware.
+
+```
+// Take a picture and add a time tag to it;
+take_picture( "my_picture_201906170521" );
+upload_FTPpicture();
+
+// And by changing it on Blynk from the hardware will reflect on the App
+Blynk.setProperty(VX, "url", 1, "https://mywebsite/something/my_picture_201906170521.jpg");
+
+```
+
+![Blynk and ESP32 CAM photo sharing](./pics/screenshot_blynk.jpg)
+
+## Node-RED
+
+* Another alternative is to send the image via MQTT(???) using cloud brokers as [CloudMQTT](https://www.cloudmqtt.com/) and have the Node-RED subscribed to that topic and saving it to the database and serving the file locally.
+
+* This is a topic for another project, but can be seen briefly [here](https://github.com/ldab/Node-RED-Energy-Harvesting-dashboard)
 
 ## Credits
 

@@ -8,45 +8,37 @@ https://github.com/ldab/ESP32-CAM-Picture-Sharing
 Distributed as-is; no warranty is given.
 
 ******************************************************************************/
-
 #include "Arduino.h"
-#include "Ticker.h"
-#include "WiFi.h"
-#include "esp_camera.h"
 
-#define CAMERA_MODEL_AI_THINKER
-
-#include "camera_pins.h"
-#include "esp_timer.h"
-#include "img_converters.h"
-
-#include "fb_gfx.h"
-#include "soc/soc.h"           //disable brownout problems
-#include "soc/rtc_cntl_reg.h"  //disable brownout problems
-#include "dl_lib.h"
-#include "esp_http_server.h"
-
-#include "esp_wifi.h"
-#include <driver/adc.h>
-#include <esp_adc_cal.h>
-
-extern "C" {
-	#include "freertos/FreeRTOS.h"
-	#include "freertos/timers.h"
-}
-
-#include <AsyncMqttClient.h>
+/* Comment this out to disable prints and save space */
+//#define BLYNK_DEBUG
+//#define BLYNK_PRINT Serial
+#define BLYNK_NO_BUILTIN
+#define BLYNK_NO_FLOAT
 
 // Enable Debug interface and serial prints over UART1
 #define DEGUB_ESP
 
-// WiFi and MQTT Credentials
-#define WIFI_SSID     ""
-#define WIFI_PASSWORD ""
-#define MQTT_HOST     ""
-#define MQTT_PORT     666
-#define USERNAME      ""
-#define PASSWORD      ""
+// Blynk related Libs
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+#include <TimeLib.h>
+#include <WidgetRTC.h>
+
+#include "esp_camera.h"
+#include "esp_timer.h"
+#include "img_converters.h"
+
+#include "esp_http_server.h"
+#include "fb_gfx.h"
+#include "fd_forward.h"
+#include "fr_forward.h"
+//#include "soc/soc.h"           //disable brownout problems
+//#include "soc/rtc_cntl_reg.h"  //disable brownout problems
+#include "dl_lib.h"
+
+//#include "Octocat_asdata.h"
 
 // Connection timeout;
 #define CON_TIMEOUT   10*1000                     // milliseconds
@@ -69,6 +61,37 @@ extern "C" {
   #define DBG(...)
 #endif
 
+// FTP Client Lib
+#include "ESP32_FTPClient.h"
+
+// Go to the Project Settings (nut icon) and get Auth Token in the Blynk App.
+char auth[] = "";
+
+// Your WiFi credentials.
+char ssid[] = "";
+char pass[] = "";
+
+// FTP Server credentials
+char ftp_server[] = "files.000webhost.com";
+char ftp_user[]   = "";
+char ftp_pass[]   = "";
+
+// Camera buffer, URL and picture name
+camera_fb_t *fb = NULL;
+String pic_name = "";
+String pic_url  = "";
+
+// Variable marked with this attribute will keep its value during a deep sleep / wake cycle.
+RTC_DATA_ATTR uint64_t bootCount = 0;
+RTC_DATA_ATTR uint64_t time_unix = 0;
+
+BlynkTimer timer;
+WidgetRTC rtc;
+ESP32_FTPClient ftp (ftp_server, ftp_user, ftp_pass);
+
+void FTP_upload( void );
+bool take_picture(void);
+
 void setup()
 {
 #ifdef DEGUB_ESP
@@ -76,25 +99,27 @@ void setup()
   Serial.setDebugOutput(true);
 #endif
 
+  //WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); //disable brownout detector
+
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
-  config.ledc_timer = LEDC_TIMER_0;
-  config.pin_d0 = Y2_GPIO_NUM;
-  config.pin_d1 = Y3_GPIO_NUM;
-  config.pin_d2 = Y4_GPIO_NUM;
-  config.pin_d3 = Y5_GPIO_NUM;
-  config.pin_d4 = Y6_GPIO_NUM;
-  config.pin_d5 = Y7_GPIO_NUM;
-  config.pin_d6 = Y8_GPIO_NUM;
-  config.pin_d7 = Y9_GPIO_NUM;
-  config.pin_xclk = XCLK_GPIO_NUM;
-  config.pin_pclk = PCLK_GPIO_NUM;
-  config.pin_vsync = VSYNC_GPIO_NUM;
-  config.pin_href = HREF_GPIO_NUM;
-  config.pin_sscb_sda = SIOD_GPIO_NUM;
-  config.pin_sscb_scl = SIOC_GPIO_NUM;
-  config.pin_pwdn = PWDN_GPIO_NUM;
-  config.pin_reset = RESET_GPIO_NUM;
+  config.ledc_timer   = LEDC_TIMER_0;
+  config.pin_d0       = 5;
+  config.pin_d1       = 18;
+  config.pin_d2       = 19;
+  config.pin_d3       = 21;
+  config.pin_d4       = 36;
+  config.pin_d5       = 39;
+  config.pin_d6       = 34;
+  config.pin_d7       = 35;
+  config.pin_xclk     = 0;
+  config.pin_pclk     = 22;
+  config.pin_vsync    = 25;
+  config.pin_href     = 23;
+  config.pin_sscb_sda = 26;
+  config.pin_sscb_scl = 27;
+  config.pin_pwdn     = 32;
+  config.pin_reset    = -1;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
 
@@ -116,36 +141,99 @@ void setup()
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK)
   {
-    DBG("Camera init failed with error 0x%x");
+    Serial.print("Camera init failed with error 0x%x");
     DBG(err);
     return;
   }
 
   sensor_t * s = esp_camera_sensor_get();
-  //initial sensors are flipped vertically and colors are a bit saturated
-  if (s->id.PID == OV3660_PID)
-  {
-    s->set_vflip(s, 1);//flip it back
-    s->set_brightness(s, 1);//up the blightness just a bit
-    s->set_saturation(s, -2);//lower the saturation
-  }
-
+ 
   //drop down frame size for higher initial frame rate
   s->set_framesize(s, FRAMESIZE_QVGA);
 
-  WiFi.begin( WIFI_SSID, WIFI_PASSWORD );
+  // Enable timer wakeup for ESP32 sleep
+  esp_sleep_enable_timer_wakeup( TIME_TO_SLEEP );
 
-  while (WiFi.status() != WL_CONNECTED) {
+  WiFi.begin( ssid, pass );
+
+  while ( WiFi.status() != WL_CONNECTED && millis() < CON_TIMEOUT )
+  {
     delay(500);
     Serial.print(".");
   }
+
+  if( !WiFi.isConnected() )
+  {
+    DBG("Failed to connect to WiFi, going to sleep");
+    //esp_deep_sleep_start();
+  }
+
   DBG("");
   DBG("WiFi connected");
   DBG( WiFi.localIP() );
+
+  Blynk.config( auth );
+  rtc.begin();
 
 }
 
 void loop()
 {
+  Blynk.run();
+
+  // Take picture
+  if( take_picture() )
+  {
+    while( !Blynk.connected() ) delay(1);
+
+    FTP_upload();
+
+    esp_deep_sleep_start();
+  }
+
+  // After sending the picture sleep.
+  //esp_deep_sleep_start();
+}
+
+bool take_picture()
+{
+  DBG("Taking picture now");
+
+  // Take picture
+  
+  fb = esp_camera_fb_get();  
+  if(!fb)
+  {
+    DBG("Camera capture failed");
+    return false;
+  }
+  
+  // Rename the picture with the time string
+  pic_name = String( now() ) + ".jpg";
+
+  return true;
+}
+
+void FTP_upload()
+{
+  DBG("Uploading via FTP");
+  ftp.OpenConnection();
+  
+  //Create a file and write the image data to it;
+  ftp.InitFile("Type I");
+  ftp.ChangeWorkDir("/public_html/zyro/gallery_gen/");
+  const char *f_name = pic_name.c_str();
+  ftp.NewFile( f_name );
+  ftp.WriteData(fb->buf, fb->len);
+  ftp.CloseFile();
+
+  // Change URL on Blynk App
+  pic_url += pic_name;
+  DBG("Change App URL to: ");
+  DBG( pic_url );
+  Blynk.setProperty(V0, "url", 1, pic_url);
+
+  // Breath, withouth delay URL failed to update.
+  delay(500);
 
 }
