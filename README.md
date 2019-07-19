@@ -61,9 +61,7 @@ ESP32-CAM remote image access via FTP. Take pictures with ESP32 and upload it vi
 
 * This way you don't need to overload the ESP32, your network remains secure, not open to the world, no port forwarding.
 
-* For this example I uploaded the GitHub Octocat to my [000Webhost](https://www.000webhost.com/) hosted webiste, the file is avalable under: [https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg](https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg).
-
-<img src="https://lbispo.000webhostapp.com/gallery_gen/octocat.jpg" width="20%"> 
+* For this example I uploaded the GitHub Octocat to my [000Webhost](https://www.000webhost.com/) hosted webiste, the file is avalable under: `https://my_user.000webhostapp.com/gallery_gen/XxXxXxXx.jpg`
 
 ```
   ftp.OpenConnection();
@@ -97,7 +95,7 @@ upload_FTPpicture();
 Blynk.setProperty(VX, "url", 1, "https://mywebsite/something/my_picture_201906170521.jpg");
 ```
 
-![Blynk and ESP32 CAM photo sharing](./pics/screenshot_blynk.jpg)
+<img src="./pics/screenshot_blynk.jpg" width="30%"> <img src="./pics/QR.jpg" width="30%"> 
 
 ## Node-RED
 

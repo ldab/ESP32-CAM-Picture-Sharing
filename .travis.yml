@@ -38,4 +38,3 @@ install:
 
 script:
     - pio run
-    #- platformio ci --board=nina_w10

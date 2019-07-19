@@ -38,22 +38,11 @@ Distributed as-is; no warranty is given.
 //#include "soc/rtc_cntl_reg.h"  //disable brownout problems
 #include "dl_lib.h"
 
-//#include "Octocat_asdata.h"
-
 // Connection timeout;
 #define CON_TIMEOUT   10*1000                     // milliseconds
 
 // Not using Deep Sleep on PCB because TPL5110 timer takes over.
-#define TIME_TO_SLEEP (uint64_t)50*60*1000*1000   // microseconds
-
-// Assing pin names
-#define _SDA          22
-#define _SCL          21
-#define RGB_R         33
-#define RGB_G         25
-#define RGB_B         26
-#define DONE          32
-#define BATT          36                        //ADC1 CHANNEL 0 *ADC2 chanel can't be used in conjunction with Wi-Fi https://docs.espressif.com/projects/esp-idf/en/latest/api-reference/peripherals/adc.html
+#define TIME_TO_SLEEP (uint64_t)60*60*1000*1000   // microseconds
 
 #ifdef DEGUB_ESP
   #define DBG(x) Serial.println(x)
@@ -83,14 +72,19 @@ String pic_url  = "";
 
 // Variable marked with this attribute will keep its value during a deep sleep / wake cycle.
 RTC_DATA_ATTR uint64_t bootCount = 0;
-RTC_DATA_ATTR uint64_t time_unix = 0;
 
-BlynkTimer timer;
 WidgetRTC rtc;
 ESP32_FTPClient ftp (ftp_server, ftp_user, ftp_pass);
 
+void deep_sleep(void);
 void FTP_upload( void );
 bool take_picture(void);
+
+BLYNK_CONNECTED()
+{
+  // Synchronize time on connection
+  rtc.begin();
+}
 
 void setup()
 {
@@ -124,18 +118,9 @@ void setup()
   config.pixel_format = PIXFORMAT_JPEG;
 
   //init with high specs to pre-allocate larger buffers
-  if(psramFound())
-  {
-    config.frame_size = FRAMESIZE_UXGA;
-    config.jpeg_quality = 10;
-    config.fb_count = 2;
-  } 
-  else
-  {
-    config.frame_size = FRAMESIZE_SVGA;
-    config.jpeg_quality = 12;
-    config.fb_count = 1;
-  }
+  config.frame_size = FRAMESIZE_XGA; // set picture size, FRAMESIZE_XGA = 1024x768
+  config.jpeg_quality = 10;          // quality of JPEG output. 0-63 lower means higher quality
+  config.fb_count = 2;
 
   // camera init
   esp_err_t err = esp_camera_init(&config);
@@ -146,15 +131,17 @@ void setup()
     return;
   }
 
-  sensor_t * s = esp_camera_sensor_get();
- 
-  //drop down frame size for higher initial frame rate
-  s->set_framesize(s, FRAMESIZE_QVGA);
-
+  // Change extra settings if required
+  //sensor_t * s = esp_camera_sensor_get();
+  //s->set_vflip(s, 0);       //flip it back
+  //s->set_brightness(s, 1);  //up the blightness just a bit
+  //s->set_saturation(s, -2); //lower the saturation
+  
   // Enable timer wakeup for ESP32 sleep
   esp_sleep_enable_timer_wakeup( TIME_TO_SLEEP );
 
   WiFi.begin( ssid, pass );
+  DBG("\nConnecting to WiFi");
 
   while ( WiFi.status() != WL_CONNECTED && millis() < CON_TIMEOUT )
   {
@@ -165,7 +152,7 @@ void setup()
   if( !WiFi.isConnected() )
   {
     DBG("Failed to connect to WiFi, going to sleep");
-    //esp_deep_sleep_start();
+    deep_sleep();
   }
 
   DBG("");
@@ -173,34 +160,52 @@ void setup()
   DBG( WiFi.localIP() );
 
   Blynk.config( auth );
-  rtc.begin();
 
 }
 
 void loop()
 {
+
   Blynk.run();
 
-  // Take picture
-  if( take_picture() )
+  if(Blynk.connected() && timeStatus() == 2)
   {
-    while( !Blynk.connected() ) delay(1);
+      // Take picture
+    if( take_picture() )
+    {
+      FTP_upload();
 
-    FTP_upload();
+      deep_sleep();
+    }
 
-    esp_deep_sleep_start();
+    else
+    {
+      DBG("Capture failed, sleeping");
+      deep_sleep();
+    }
   }
 
-  // After sending the picture sleep.
-  //esp_deep_sleep_start();
+  if( millis() > CON_TIMEOUT)
+  {
+    DBG("Timeout");
+
+    deep_sleep();
+  }
+
+}
+
+void deep_sleep()
+{
+  DBG("Going to sleep after: " + String( millis() ) + "ms");
+  Serial.flush();
+
+  esp_deep_sleep_start();
 }
 
 bool take_picture()
 {
   DBG("Taking picture now");
 
-  // Take picture
-  
   fb = esp_camera_fb_get();  
   if(!fb)
   {
@@ -209,7 +214,9 @@ bool take_picture()
   }
   
   // Rename the picture with the time string
-  pic_name = String( now() ) + ".jpg";
+  pic_name += String( now() ) + ".jpg";
+  DBG("Camera capture success, saved as:");
+  DBG( pic_name );
 
   return true;
 }
@@ -221,7 +228,7 @@ void FTP_upload()
   
   //Create a file and write the image data to it;
   ftp.InitFile("Type I");
-  ftp.ChangeWorkDir("/public_html/zyro/gallery_gen/");
+  ftp.ChangeWorkDir("/public_html/zyro/gallery_gen/"); // change it to reflect your directory
   const char *f_name = pic_name.c_str();
   ftp.NewFile( f_name );
   ftp.WriteData(fb->buf, fb->len);
@@ -234,6 +241,6 @@ void FTP_upload()
   Blynk.setProperty(V0, "url", 1, pic_url);
 
   // Breath, withouth delay URL failed to update.
-  delay(500);
+  delay(100);
 
 }
